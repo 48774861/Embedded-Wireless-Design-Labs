@@ -1,0 +1,131 @@
+options:
+  parameters:
+    author: ECE 5377/7377
+    catch_exceptions: 'True'
+    category: '[ECE 5377/7377]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Lab 3 finite complex64 waveform transmitter
+    gen_cmake: 'Off'
+    gen_linking: dynamic
+    generate_options: no_gui
+    hier_block_src_path: '.:'
+    id: lab3_finite_file_transmitter
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: 'Lab 3: Finite File Source to N310'
+    window_size: (1200,700)
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [16, 16], rotation: 0, state: enabled}
+
+blocks:
+- name: import_os
+  id: import
+  parameters: {alias: '', comment: '', imports: import os}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [304, 152], rotation: 0, state: enabled}
+- name: lab_root
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_LAB3_ROOT', os.path.expanduser('~/ECE7377/labs/lab3'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [16, 152], rotation: 0, state: enabled}
+- name: tx_device_args
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_DEVICE_ARGS', 'addr=127.0.0.1')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [416, 152], rotation: 0, state: enabled}
+- name: tx_subdevice
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_SUBDEVICE', 'A:0')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [704, 152], rotation: 0, state: enabled}
+- name: tx_antenna
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_ANTENNA', 'TX/RX')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [864, 152], rotation: 0, state: enabled}
+- name: samp_rate
+  id: variable
+  parameters: {comment: '', value: '1.25e6'}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [200, 24], rotation: 0, state: enabled}
+- name: center_frequency
+  id: variable
+  parameters: {comment: '', value: '2.45e9'}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [360, 24], rotation: 0, state: enabled}
+- name: tx_gain
+  id: variable
+  parameters: {comment: 'Set in GRC or with ECE7377_TX_GAIN_DB.', value: "float(os.environ.get('ECE7377_TX_GAIN_DB', '10'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [536, 24], rotation: 0, state: enabled}
+- name: tx_file
+  id: variable
+  parameters: {comment: 'Set in GRC or with ECE7377_TX_FILE.', value: "os.environ.get('ECE7377_TX_FILE', os.path.join(lab_root, 'work/waveforms/task3_m4_tx_c64.dat'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [664, 24], rotation: 0, state: enabled}
+- name: transmit_seconds
+  id: variable
+  parameters: {comment: 'Finite on-air duration. Start TX first, then run the 8 s RX capture. Set in GRC or with ECE7377_TX_SECONDS.', value: "float(os.environ.get('ECE7377_TX_SECONDS', '20.0'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [936, 24], rotation: 0, state: enabled}
+- name: transmit_samples
+  id: variable
+  parameters: {comment: 'Head length keeps the repeated File Source finite.', value: int(round(samp_rate * transmit_seconds))}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [1056, 152], rotation: 0, state: enabled}
+- name: blocks_file_source_0
+  id: blocks_file_source
+  parameters:
+    affinity: ''
+    alias: ''
+    begin_tag: pmt.PMT_NIL
+    comment: ''
+    file: tx_file
+    length: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    repeat: 'True'
+    type: complex
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [48, 344], rotation: 0, state: enabled}
+- name: blocks_head_0
+  id: blocks_head
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_items: transmit_samples
+    type: complex
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [400, 344], rotation: 0, state: enabled}
+- name: uhd_usrp_sink_0
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: tx_antenna
+    center_freq0: center_frequency
+    clock_rate: '125e6'
+    clock_source0: internal
+    dev_addr: tx_device_args
+    dev_args: '""'
+    gain0: tx_gain
+    nchan: '1'
+    num_mboards: '1'
+    otw: sc16
+    samp_rate: samp_rate
+    sd_spec0: tx_subdevice
+    stream_args: ''
+    stream_chans: '[0]'
+    sync: none
+    time_source0: internal
+    type: fc32
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [688, 304], rotation: 0, state: enabled}
+
+connections:
+- [blocks_file_source_0, '0', blocks_head_0, '0']
+- [blocks_head_0, '0', uhd_usrp_sink_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2
