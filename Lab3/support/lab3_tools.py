@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
 
-from support.lab3_dsp import (
+from lab3_dsp import (
     bits_to_integers,
     error_rates,
     integers_to_bits,
@@ -336,6 +336,28 @@ def normalized_power(samples: np.ndarray) -> float:
     return float(np.mean(np.abs(centered) ** 2))
 
 
+def robust_noise_power(
+    samples: np.ndarray,
+    sample_rate_sps: float,
+    block_seconds: float = 0.010,
+) -> float:
+    """Estimate the stationary noise floor while rejecting brief activity."""
+    values = np.asarray(samples)
+    block_samples = max(round(block_seconds * sample_rate_sps), 1)
+    block_count = values.size // block_samples
+    if block_count == 0:
+        return normalized_power(values)
+    blocks = values[: block_count * block_samples].reshape(
+        block_count,
+        block_samples,
+    )
+    block_power = np.mean(
+        np.abs(blocks - np.mean(blocks, axis=1, keepdims=True)) ** 2,
+        axis=1,
+    )
+    return float(np.median(block_power))
+
+
 def detect_strongest_burst(
     samples: np.ndarray,
     sample_rate_sps: float,
@@ -370,15 +392,89 @@ def detect_strongest_burst(
 
 
 def estimate_repeated_period_cfo(
-    samples: np.ndarray, period_samples: int, sample_rate_sps: float
+    samples: np.ndarray,
+    period: np.ndarray,
+    sample_rate_sps: float,
+    *,
+    maximum_absolute_cfo_hz: float = 10_000.0,
+    search_periods: int = 16,
 ) -> float:
-    product = np.asarray(samples[period_samples:]) * np.conj(
-        np.asarray(samples[:-period_samples])
-    )
+    """Estimate CFO and resolve the repeated-frame frequency ambiguity.
+
+    The phase difference between repeated periods gives CFO modulo
+    ``sample_rate_sps / period_samples``.  The previous implementation used
+    only that aliased estimate.  For the Lab 3 waveform, that restricted the
+    unambiguous range to approximately +/-89.8 Hz.  Independent N310 clocks
+    can exceed that range.
+
+    This implementation forms every ambiguity candidate within the requested
+    CFO range.  It corrects a short portion of the received record with each
+    candidate and selects the candidate that produces the strongest
+    correlation with the complete known frame.
+    """
+    values = np.asarray(samples)
+    reference = np.asarray(period, dtype=np.complex128)
+    period_samples = reference.size
+    sample_rate = float(sample_rate_sps)
+
+    if period_samples == 0:
+        raise ValueError("the reference period must not be empty")
+    if values.size < 3 * period_samples:
+        raise ValueError("CFO estimation requires at least three frame periods")
+    if maximum_absolute_cfo_hz <= 0.0:
+        raise ValueError("maximum_absolute_cfo_hz must be positive")
+
+    product = values[period_samples:] * np.conj(values[:-period_samples])
     phase_per_period = np.angle(np.sum(product, dtype=np.complex128))
-    return float(
-        phase_per_period * sample_rate_sps / (2.0 * np.pi * period_samples)
+    aliased_cfo_hz = (
+        phase_per_period * sample_rate / (2.0 * np.pi * period_samples)
     )
+    ambiguity_spacing_hz = sample_rate / period_samples
+
+    minimum_k = int(
+        np.ceil(
+            (-maximum_absolute_cfo_hz - aliased_cfo_hz)
+            / ambiguity_spacing_hz
+        )
+    )
+    maximum_k = int(
+        np.floor(
+            (maximum_absolute_cfo_hz - aliased_cfo_hz)
+            / ambiguity_spacing_hz
+        )
+    )
+    candidates_hz = aliased_cfo_hz + ambiguity_spacing_hz * np.arange(
+        minimum_k, maximum_k + 1
+    )
+    if candidates_hz.size == 0:
+        raise RuntimeError("the CFO search produced no candidates")
+
+    search_count = min(
+        values.size,
+        max(int(search_periods), 3) * period_samples,
+    )
+    search_samples = np.asarray(values[:search_count], dtype=np.complex128)
+    search_index = np.arange(search_count, dtype=float)
+    matched_reference = np.conj(reference[::-1])
+    scores = np.empty(candidates_hz.size, dtype=float)
+
+    for candidate_index, candidate_hz in enumerate(candidates_hz):
+        corrected = search_samples * np.exp(
+            -1j
+            * 2.0
+            * np.pi
+            * candidate_hz
+            * search_index
+            / sample_rate
+        )
+        correlation = signal.fftconvolve(
+            corrected,
+            matched_reference,
+            mode="valid",
+        )
+        scores[candidate_index] = float(np.max(np.abs(correlation)))
+
+    return float(candidates_hz[int(np.argmax(scores))])
 
 
 def _decode_corrected_frame(
@@ -445,30 +541,96 @@ def analyze_psk_capture(
     samples = np.memmap(capture_path, dtype=np.complex64, mode="r")
     noise = np.memmap(noise_path, dtype=np.complex64, mode="r")
     sample_rate = float(reference["sample_rate_sps"])
-    noise_power = normalized_power(noise)
+    noise_power = robust_noise_power(noise, sample_rate)
     start, stop, block_power = detect_strongest_burst(samples, sample_rate, noise_power)
     period = np.asarray(reference["period"], dtype=np.complex128)
-    cfo_hz = estimate_repeated_period_cfo(samples, period.size, sample_rate)
+    cfo_hz = estimate_repeated_period_cfo(
+        samples,
+        period,
+        sample_rate,
+    )
     index = np.arange(samples.size, dtype=float)
     corrected = np.asarray(samples, dtype=np.complex128) * np.exp(
         -1j * 2.0 * np.pi * cfo_hz * index / sample_rate
     )
     correlation = signal.fftconvolve(corrected, np.conj(period[::-1]), mode="valid")
+    correlation_magnitude = np.abs(correlation)
+    period_energy = float(np.vdot(period, period).real)
+    cumulative_energy = np.concatenate(
+        ([0.0], np.cumsum(np.abs(corrected) ** 2, dtype=float))
+    )
+    frame_energy = cumulative_energy[period.size :] - cumulative_energy[: -period.size]
+    normalized_correlation = correlation_magnitude / np.sqrt(
+        np.maximum(frame_energy * period_energy, TINY)
+    )
     peaks, _ = signal.find_peaks(
-        np.abs(correlation),
-        distance=round(0.95 * period.size),
-        prominence=0.04 * np.max(np.abs(correlation)),
+        normalized_correlation,
+        distance=round(0.80 * period.size),
     )
     if peaks.size == 0:
         raise RuntimeError("Reference correlation found no frame")
-    strong = peaks[np.abs(correlation[peaks]) >= 0.45 * np.max(np.abs(correlation[peaks]))]
-    if strong.size == 0:
-        strong = peaks[np.argsort(np.abs(correlation[peaks]))[-1:]]
-    requested = min(maximum_frames, strong.size)
-    selected = np.sort(strong[np.argsort(np.abs(correlation[strong]))[-requested:]])
+
+    # A valid transmission creates a contiguous run of peaks separated by one
+    # frame period. Score complete periodic runs rather than isolated peaks so
+    # an unrelated high-power transient cannot displace the Lab 3 frames.
+    peak_magnitude = normalized_correlation[peaks]
+    candidate_count = min(256, peaks.size)
+    candidate_seeds = peaks[np.argsort(peak_magnitude)[-candidate_count:]]
+    requested = min(maximum_frames, max(correlation.size // period.size, 1))
+    search_tolerance = max(4, round(0.03 * period.size))
+    minimum_center = search_tolerance
+    maximum_center = correlation.size - search_tolerance - 1
+    best_score = -np.inf
+    selected = np.empty(0, dtype=np.int64)
+
+    for seed in candidate_seeds:
+        track_start = int(seed) - (requested // 2) * period.size
+        if track_start < minimum_center:
+            shift = math.ceil((minimum_center - track_start) / period.size)
+            track_start += shift * period.size
+        track_stop = track_start + (requested - 1) * period.size
+        if track_stop > maximum_center:
+            shift = math.ceil((track_stop - maximum_center) / period.size)
+            track_start -= shift * period.size
+        centers = track_start + np.arange(requested) * period.size
+        if centers[0] < minimum_center or centers[-1] > maximum_center:
+            continue
+
+        track_lags = np.empty(requested, dtype=np.int64)
+        track_values = np.empty(requested, dtype=float)
+        for center_index, center in enumerate(centers):
+            left = int(center) - search_tolerance
+            right = int(center) + search_tolerance + 1
+            local_offset = int(np.argmax(normalized_correlation[left:right]))
+            track_lags[center_index] = left + local_offset
+            track_values[center_index] = normalized_correlation[left + local_offset]
+        score = float(np.median(track_values))
+        if score > best_score:
+            best_score = score
+            selected = track_lags
+
+    if selected.size == 0:
+        selected = peaks[np.argsort(peak_magnitude)[-1:]]
+    selected = np.sort(selected)
+    track_magnitude = normalized_correlation[selected]
     frames = [_decode_corrected_frame(corrected, int(lag), reference) for lag in selected]
-    active_power = normalized_power(samples[start:stop])
-    signal_power = max(active_power - noise_power, TINY)
+    frame_powers = np.asarray(
+        [
+            normalized_power(samples[int(lag) : int(lag) + period.size])
+            for lag in selected
+        ],
+        dtype=float,
+    )
+    start = int(selected[0])
+    stop = int(selected[-1] + period.size)
+    active_power = float(np.median(frame_powers))
+    signal_power = max(active_power - noise_power, 0.0)
+    snr_resolved = signal_power > 0.0
+    snr_db = (
+        float(10.0 * np.log10(signal_power / noise_power))
+        if snr_resolved
+        else float("nan")
+    )
     return {
         "capture_path": str(Path(capture_path)),
         "sample_count": int(samples.size),
@@ -480,7 +642,8 @@ def analyze_psk_capture(
         "noise_power": noise_power,
         "active_power": active_power,
         "signal_power": signal_power,
-        "snr_db": float(10.0 * np.log10(signal_power / noise_power)),
+        "snr_resolved": snr_resolved,
+        "snr_db": snr_db,
         "maximum_magnitude": float(np.max(np.abs(samples))),
         "evm_percent": 100.0 * float(np.median([item["rms_evm"] for item in frames])),
         "ser": float(np.mean([item["ser"] for item in frames])),
@@ -488,8 +651,8 @@ def analyze_psk_capture(
         "decoded_prefixes": [item["decoded_prefix"] for item in frames],
         "payload_equalized": np.concatenate([item["payload_equalized"] for item in frames]),
         "correlation_lags": selected,
-        "correlation_peak": float(np.max(np.abs(correlation))),
-        "block_peak_db": float(10.0 * np.log10(np.max(block_power))),
+        "correlation_peak": float(np.max(correlation_magnitude[selected])),
+        "block_peak_db": float(10.0 * np.log10(np.max(frame_powers))),
     }
 
 
@@ -570,10 +733,15 @@ def plot_task3_measurements(
         payload = np.asarray(record["payload_equalized"])
         order = 4 if "m4" in key else 8
         ideal = psk_constellation(order)
+        snr_text = (
+            f"SNR {record['snr_db']:.1f} dB"
+            if record.get("snr_resolved", True)
+            else "SNR unresolved"
+        )
         axis.scatter(payload.real, payload.imag, s=2, alpha=0.10)
         axis.scatter(ideal.real, ideal.imag, marker="x", s=55, color="black")
         axis.set(
-            title=f"{key}: SNR {record['snr_db']:.1f} dB, EVM {record['evm_percent']:.1f}%",
+            title=f"{key}: {snr_text}, EVM {record['evm_percent']:.1f}%",
             xlabel="I",
             ylabel="Q",
             aspect="equal",
