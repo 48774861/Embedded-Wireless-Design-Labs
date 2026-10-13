@@ -382,7 +382,7 @@ def analyze_gain_sweep(capture_dir: Path | str, gains=(25, 32, 40), runs=(1, 2, 
     records = []
     for gain in gains:
         for run in runs:
-            stem = f"task4_gain{gain}_run{run}"
+            stem = f"task3_gain{gain}_run{run}"
             record = analyze_pn_capture(
                 capture_dir / f"{stem}_raw_c64.dat",
                 noise_path=noise_path,
