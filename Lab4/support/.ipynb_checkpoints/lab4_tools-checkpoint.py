@@ -14,6 +14,7 @@ from lab4_dsp import (
     ofdm_phase_sweep,
     pn_sequence,
     timing_trial,
+    ofdm_grid
 )
 
 
@@ -485,6 +486,8 @@ def compact_record(record):
 def ofdm_reference(**kwargs):
     return ofdm_phase_sweep(**kwargs)
 
+def get_ofdm_grid(**kwargs):
+    return ofdm_grid(**kwargs)
 
 def task2_data_bits_per_frame():
     return int(2 * DATA_SUBCARRIERS.size)

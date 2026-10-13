@@ -269,6 +269,27 @@ def ofdm_phase_sweep(
         "rows": rows,
     }
 
+def ofdm_grid(
+    phase_degrees: tuple[int, ...] = (0, 30, 60, 90),
+    *,
+    frames: int = 1000,
+    ebn0_db: float = 10.0,
+    message: str = "hello world",
+    seed: int = 4402,
+) -> dict[str, object]:
+    """Run a 64-point, 52-active-subcarrier 802.11-like OFDM phase study."""
+    rng = np.random.default_rng(seed)
+    message_bits = np.unpackbits(np.frombuffer(message.encode("ascii"), dtype=np.uint8))
+    bits_per_frame = 2 * DATA_SUBCARRIERS.size
+    frame_bits = np.resize(message_bits, bits_per_frame)
+    bits = np.tile(frame_bits, (int(frames), 1))
+    data_symbols = _qpsk_map(bits.reshape(-1)).reshape(int(frames), -1)
+    grid = np.zeros((int(frames), NFFT), dtype=complex)
+    grid[:, DATA_SUBCARRIERS % NFFT] = data_symbols
+    grid[:, PILOT_SUBCARRIERS % NFFT] = 1
+
+    return grid
+
 
 def pn_sequence(degree: int = 10) -> np.ndarray:
     """Return one maximal-length BPSK sequence from SciPy's GLFSR."""
