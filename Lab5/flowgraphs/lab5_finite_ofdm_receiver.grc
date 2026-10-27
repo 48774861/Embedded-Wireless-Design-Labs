@@ -1,0 +1,164 @@
+options:
+  parameters:
+    author: ECE 5377/7377
+    catch_exceptions: 'True'
+    category: '[ECE 5377/7377]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Lab 5 finite raw and squelched OFDM receiver
+    gen_cmake: 'Off'
+    gen_linking: dynamic
+    generate_options: no_gui
+    hier_block_src_path: '.:'
+    id: lab5_finite_ofdm_receiver
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: 'Lab 5: N310 to Raw and Squelched OFDM File Sinks'
+    window_size: (1800,900)
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [8, 8], rotation: 0, state: enabled}
+
+blocks:
+- name: import_os
+  id: import
+  parameters: {alias: '', comment: '', imports: import os}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [24, 24], rotation: 0, state: enabled}
+- name: lab_root
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_LAB5_ROOT', os.path.expanduser('~/ECE7377/labs/lab5'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [24, 104], rotation: 0, state: enabled}
+- name: work_dir
+  id: variable
+  parameters: {comment: '', value: "os.path.join(lab_root, 'work')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [232, 104], rotation: 0, state: enabled}
+- name: rx_device_args
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_RX_DEVICE_ARGS', 'addr=127.0.0.1')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [24, 184], rotation: 0, state: enabled}
+- name: rx_subdevice
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_RX_SUBDEVICE', 'A:0')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [280, 184], rotation: 0, state: enabled}
+- name: rx_antenna
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_RX_ANTENNA', 'TX/RX')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [488, 184], rotation: 0, state: enabled}
+- name: samp_rate
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_SAMPLE_RATE', '1e6'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [232, 24], rotation: 0, state: enabled}
+- name: center_frequency
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_CENTER_FREQUENCY', '2.45e9'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [384, 24], rotation: 0, state: enabled}
+- name: rx_gain
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_RX_GAIN', '60'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [544, 24], rotation: 0, state: enabled}
+- name: capture_seconds
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_CAPTURE_SECONDS', '15.0'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [672, 24], rotation: 0, state: enabled}
+- name: capture_samples
+  id: variable
+  parameters: {comment: '', value: int(round(samp_rate * capture_seconds))}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [824, 24], rotation: 0, state: enabled}
+- name: output_file
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_RX_OUTPUT_FILE', os.path.join(work_dir, 'captures/lab5_ofdm_tx45_c64.dat'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [232, 104], rotation: 0, state: enabled}
+- name: squelched_file
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_RX_SQUELCHED_FILE', os.path.join(work_dir, 'captures/lab5_inspection_squelched_c64.dat'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [504, 104], rotation: 0, state: enabled}
+- name: squelch_threshold_db
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_SQUELCH_THRESHOLD_DB', '-78'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [760, 104], rotation: 0, state: enabled}
+- name: uhd_usrp_source_0
+  id: uhd_usrp_source
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: rx_antenna
+    center_freq0: center_frequency
+    clock_rate: '125e6'
+    clock_source0: internal
+    dev_addr: rx_device_args
+    dev_args: '""'
+    gain0: rx_gain
+    nchan: '1'
+    num_mboards: '1'
+    otw: sc16
+    samp_rate: samp_rate
+    sd_spec0: rx_subdevice
+    stream_args: ''
+    stream_chans: '[0]'
+    sync: none
+    time_source0: internal
+    type: fc32
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [32, 304], rotation: 0, state: enabled}
+- name: blocks_head_0
+  id: blocks_head
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_items: capture_samples
+    type: complex
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [240, 304], rotation: 0, state: enabled}
+- name: blocks_file_sink_0
+  id: blocks_file_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    append: 'False'
+    comment: ''
+    file: output_file
+    type: complex
+    unbuffered: 'False'
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [448, 248], rotation: 0, state: enabled}
+- name: analog_simple_squelch_cc_0
+  id: analog_simple_squelch_cc
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha: '0.01'
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    threshold: squelch_threshold_db
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [312, 376], rotation: 0, state: enabled}
+- name: blocks_file_sink_1
+  id: blocks_file_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    append: 'False'
+    comment: ''
+    file: squelched_file
+    type: complex
+    unbuffered: 'False'
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [504, 376], rotation: 0, state: enabled}
+
+connections:
+- [uhd_usrp_source_0, '0', blocks_head_0, '0']
+- [blocks_head_0, '0', blocks_file_sink_0, '0']
+- [blocks_head_0, '0', analog_simple_squelch_cc_0, '0']
+- [analog_simple_squelch_cc_0, '0', blocks_file_sink_1, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2
