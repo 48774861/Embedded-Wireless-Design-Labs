@@ -1,0 +1,127 @@
+options:
+  parameters:
+    author: ECE 5377/7377
+    catch_exceptions: 'True'
+    category: '[ECE 5377/7377]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Lab 5 finite 13-period OFDM transmitter
+    gen_cmake: 'Off'
+    gen_linking: dynamic
+    generate_options: no_gui
+    hier_block_src_path: '.:'
+    id: lab5_finite_ofdm_transmitter
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: 'Lab 5: Finite OFDM File Source to N310'
+    window_size: (1800,900)
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [8, 8], rotation: 0, state: enabled}
+
+blocks:
+- name: import_os
+  id: import
+  parameters: {alias: '', comment: '', imports: import os}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [24, 184], rotation: 0, state: enabled}
+- name: lab_root
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_LAB5_ROOT', os.path.expanduser('~/ECE7377/labs/lab5'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [24, 104], rotation: 0, state: enabled}
+- name: tx_device_args
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_DEVICE_ARGS', 'addr=127.0.0.1')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [184, 184], rotation: 0, state: enabled}
+- name: tx_subdevice
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_SUBDEVICE', 'A:0')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [440, 184], rotation: 0, state: enabled}
+- name: tx_antenna
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_ANTENNA', 'TX/RX')"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [648, 184], rotation: 0, state: enabled}
+- name: samp_rate
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_SAMPLE_RATE', '1e6'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [24, 24], rotation: 0, state: enabled}
+- name: center_frequency
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_CENTER_FREQUENCY', '2.45e9'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [176, 24], rotation: 0, state: enabled}
+- name: tx_gain
+  id: variable
+  parameters: {comment: '', value: "float(os.environ.get('ECE7377_TX_GAIN', '45'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [336, 24], rotation: 0, state: enabled}
+- name: tx_file
+  id: variable
+  parameters: {comment: '', value: "os.environ.get('ECE7377_TX_FILE', os.path.join(lab_root, 'work/waveforms/task4_ofdm_13period_c64.dat'))"}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [464, 24], rotation: 0, state: enabled}
+- name: transmit_samples
+  id: variable
+  parameters: {comment: '', value: os.path.getsize(tx_file) // 8}
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [736, 24], rotation: 0, state: enabled}
+- name: blocks_file_source_0
+  id: blocks_file_source
+  parameters:
+    affinity: ''
+    alias: ''
+    begin_tag: pmt.PMT_NIL
+    comment: ''
+    file: tx_file
+    length: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    repeat: 'False'
+    type: complex
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [32, 320], rotation: 0, state: enabled}
+- name: blocks_head_0
+  id: blocks_head
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_items: transmit_samples
+    type: complex
+    vlen: '1'
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [248, 320], rotation: 0, state: enabled}
+- name: uhd_usrp_sink_0
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: tx_antenna
+    center_freq0: center_frequency
+    clock_rate: '125e6'
+    clock_source0: internal
+    dev_addr: tx_device_args
+    dev_args: '""'
+    gain0: tx_gain
+    nchan: '1'
+    num_mboards: '1'
+    otw: sc16
+    samp_rate: samp_rate
+    sd_spec0: tx_subdevice
+    stream_args: ''
+    stream_chans: '[0]'
+    sync: none
+    time_source0: internal
+    type: fc32
+  states: {bus_sink: false, bus_source: false, bus_structure: null, coordinate: [448, 240], rotation: 0, state: enabled}
+
+connections:
+- [blocks_file_source_0, '0', blocks_head_0, '0']
+- [blocks_head_0, '0', uhd_usrp_sink_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.9.2
