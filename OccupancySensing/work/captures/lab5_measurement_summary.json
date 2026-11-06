@@ -1,0 +1,20 @@
+{
+  "waveform": {
+    "tx_gains_db": 50,
+    "measurement_periods": 49,
+    "warmup_periods": 1,
+    "repeat_count": 50,
+    "capture_duration_s": 5.0,
+    "capture_samples": 5000000,
+    "sample_rate_sps": 1000000,
+    "center_frequency_hz": 2450000000.0,
+    "rx_gain_db": 60.0,
+    "period_samples": 8192,
+    "active_frame_samples": 2080,
+    "acquisition_lead_samples": 250000,
+    "finite_tx_samples": 659600,
+    "digital_peak": 0.10000000149011612,
+    "period_sha256": "a1e8eceb01c8c6d9eeb0d374cd2cbb2668a17f9f90a3f828317c2bfe7094eaba",
+    "file_sha256": "2570d029151b0a70948dd1d969be9740162c14c2e7767128b78398f58065132f"
+  }
+}
