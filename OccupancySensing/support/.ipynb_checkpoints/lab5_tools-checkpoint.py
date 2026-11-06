@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sys
 from scipy.stats import ttest_ind
+from scipy.stats import ks_2samp
 
 import matplotlib
 
@@ -1003,28 +1004,28 @@ def plot_channel_phase(results, output_dir):
     print(f"12 people: {np.mean(phase_mean_12):.4f}")
 
     print(
-        ttest_ind(
+        ks_2samp(
             phase_mean_0,
             phase_mean_12,
-            equal_var=False
+            # equal_var=False
         )
     )
 
     print("\nSlope comparison")
     print(
-        ttest_ind(
+        ks_2samp(
             phase_slope_0,
             phase_slope_12,
-            equal_var=False
+            # equal_var=False
         )
     )
 
     print("\nIntercept comparison")
     print(
-        ttest_ind(
+        ks_2samp(
             phase_intercept_0,
             phase_intercept_12,
-            equal_var=False
+            # equal_var=False
         )
     )
 
