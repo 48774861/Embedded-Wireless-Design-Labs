@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+from scipy.stats import ttest_ind
 
 import matplotlib
 
@@ -653,6 +654,7 @@ def analyze_all_channel_estimates(hardware_dir: Path) -> dict[str, object]:
         run = int(match.group(2))
 
         capture = np.fromfile(capture_path, dtype=np.complex64)
+        print(capture_path)
 
         if capture.size != expected_capture_samples:
             raise ValueError(
@@ -693,6 +695,366 @@ def analyze_all_channel_estimates(hardware_dir: Path) -> dict[str, object]:
         }
 
     return results
+    
+def channel_correlation(H1, H2):
+    return np.abs(np.vdot(H1, H2)) / (np.linalg.norm(H1) * np.linalg.norm(H2))
+
+def channel_nmse(H_ref, H_test):
+    return np.sum(np.abs(H_test - H_ref)**2) / np.sum(np.abs(H_ref)**2)
+
+def plot_correlation_heatmap(results, output_dir):
+
+    names = []
+    channels = []
+    occupancies = []
+
+    for (people, run), result in sorted(results.items()):
+        names.append(f"{people} people, run {run}")
+        occupancies.append(people)
+        channels.append(result["mean_channel_estimate"])
+
+    N = len(channels)
+
+    corr = np.zeros((N, N))
+
+    same_0 = []
+    same_12 = []
+    cross_0_12 = []
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    for i in range(N):
+        for j in range(N):
+
+            corr[i, j] = channel_correlation(
+                channels[i],
+                channels[j]
+            )
+
+            ax.text(
+                j, i,
+                f"{corr[i,j]:.3f}",
+                ha="center",
+                va="center",
+                fontsize=8
+            )
+
+            if i == j:
+                continue
+
+            if occupancies[i] == 0 and occupancies[j] == 0:
+                same_0.append(corr[i, j])
+
+            elif occupancies[i] == 12 and occupancies[j] == 12:
+                same_12.append(corr[i, j])
+
+            elif {occupancies[i], occupancies[j]} == {0, 12}:
+                cross_0_12.append(corr[i, j])
+
+    im = ax.imshow(corr, vmin=0, vmax=1, cmap="ocean")
+
+    ax.set_xticks(np.arange(N))
+    ax.set_yticks(np.arange(N))
+
+    ax.set_xticklabels(names, rotation=90)
+    ax.set_yticklabels(names)
+
+    ax.set_title("Channel Correlation Heatmap")
+
+    plt.colorbar(im, ax=ax)
+
+    save_figure(fig, output_dir, "occupancy_corr_heatmap")
+
+    # -------------------------------------------------------
+    # Summary Statistics
+    # -------------------------------------------------------
+
+    print(f"0 vs 0 average correlation:   {np.mean(same_0):.4f}")
+    print(f"12 vs 12 average correlation: {np.mean(same_12):.4f}")
+    print(f"0 vs 12 average correlation:  {np.mean(cross_0_12):.4f}")
+
+    print("\nWelch t-tests")
+
+    print(
+        "0vs0 vs 0vs12:",
+        ttest_ind(
+            same_0,
+            cross_0_12,
+            equal_var=False
+        )
+    )
+
+    print(
+        "12vs12 vs 0vs12:",
+        ttest_ind(
+            same_12,
+            cross_0_12,
+            equal_var=False
+        )
+    )
+
+    print(
+        "0vs0 vs 12vs12:",
+        ttest_ind(
+            same_0,
+            same_12,
+            equal_var=False
+        )
+    )
+
+    # -------------------------------------------------------
+    # Distribution Plot
+    # -------------------------------------------------------
+
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+
+    ax2.boxplot(
+        [same_0, same_12, cross_0_12],
+        labels=["0-0", "12-12", "0-12"]
+    )
+
+    ax2.set_ylabel("Correlation")
+    ax2.set_title("Correlation Distribution by Occupancy Pair")
+
+    save_figure(fig2, output_dir, "occupancy_corr_boxplot")
+
+def plot_difference_heatmap(results, output_dir):
+
+    names = []
+    channels = []
+
+    for (people, run), result in sorted(results.items()):
+
+        names.append(f"{people} people, run {run}")
+        channels.append(result["mean_channel_estimate"])
+
+    same_0 = []
+    same_12 = []
+    cross_0_12 = []
+    
+    items = sorted(results.items())
+    
+    for i, ((people_i, run_i), result_i) in enumerate(items):
+        H_i = result_i["mean_channel_estimate"]
+    
+        for j, ((people_j, run_j), result_j) in enumerate(items):
+    
+            # Ignore self comparisons
+            if i == j:
+                continue
+    
+            H_j = result_j["mean_channel_estimate"]
+    
+            distance = np.linalg.norm(H_i - H_j) / np.linalg.norm(H_i)
+    
+            if people_i == 0 and people_j == 0:
+                same_0.append(distance)
+    
+            elif people_i == 12 and people_j == 12:
+                same_12.append(distance)
+    
+            elif {people_i, people_j} == {0, 12}:
+                cross_0_12.append(distance)
+    
+    print(f"0 vs 0 average distance:   {np.mean(same_0):.4f}")
+    print(f"12 vs 12 average distance: {np.mean(same_12):.4f}")
+    print(f"0 vs 12 average distance:  {np.mean(cross_0_12):.4f}")
+
+    N = len(channels)
+
+    corr = np.zeros((N,N))
+
+    fig, ax = plt.subplots(figsize=(8,8))
+    for i in range(N):
+        for j in range(N):
+
+            corr[i,j] = np.linalg.norm(channels[i] - channels[j]) / np.linalg.norm(channels[i])
+            ax.text(j, i, f"{corr[i,j]:.3f}", ha="center", va="center", fontsize=8)
+
+    im = ax.imshow(corr, vmin=0, vmax=1, cmap="ocean")
+
+    ax.set_xticks(np.arange(N))
+    ax.set_yticks(np.arange(N))
+
+    ax.set_xticklabels(names, rotation=90)
+    ax.set_yticklabels(names)
+
+    ax.set_title("Channel Difference Heatmap")
+
+    plt.colorbar(im, ax=ax)
+
+    save_figure(fig, output_dir, "occupancy_diff_heatmap")
+
+def plot_channel_magnitude(results, output_dir):
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    colors = {
+        0: "tab:blue",
+        12: "tab:red",
+    }
+
+    labels_drawn = set()
+
+    for (people, run), result in sorted(results.items()):
+
+        H = result["mean_channel_estimate"]
+
+        label = None
+        if people not in labels_drawn:
+            label = f"{people} people"
+            labels_drawn.add(people)
+
+        ax.plot(
+            lab.ACTIVE_SIGNED,
+            20*np.log10(np.maximum(np.abs(H), 1e-12)),
+            marker="o",
+            ms=2,
+            color=colors.get(people, "gray"),
+            alpha=0.7,
+            label=label,
+        )
+
+    ax.set(
+        xlabel="Signed Subcarrier",
+        ylabel=r"$20\log_{10}|H[k]|$ (dB)",
+        title="Average Channel Magnitude vs Signed Subcarrier"
+    )
+
+    ax.grid(alpha=0.25)
+    ax.legend()
+
+    save_figure(fig, output_dir, "occupancy_channel_magnitude")
+
+from scipy.stats import ttest_ind
+
+def plot_channel_phase(results, output_dir):
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    colors = {0: "tab:blue", 12: "tab:red"}
+    labels_drawn = set()
+
+    phase_mean_0 = []
+    phase_mean_12 = []
+
+    phase_slope_0 = []
+    phase_slope_12 = []
+
+    phase_intercept_0 = []
+    phase_intercept_12 = []
+
+    for (people, run), result in sorted(results.items()):
+
+        H = result["mean_channel_estimate"]
+
+        phase = np.unwrap(np.angle(H))
+
+        # Feature extraction
+        mean_phase = np.mean(phase)
+
+        slope, intercept = np.polyfit(
+            lab.ACTIVE_SIGNED,
+            phase,
+            1
+        )
+
+        if people == 0:
+            phase_mean_0.append(mean_phase)
+            phase_slope_0.append(slope)
+            phase_intercept_0.append(intercept)
+        else:
+            phase_mean_12.append(mean_phase)
+            phase_slope_12.append(slope)
+            phase_intercept_12.append(intercept)
+
+        label = None
+        if people not in labels_drawn:
+            label = f"{people} people"
+            labels_drawn.add(people)
+
+        ax.plot(
+            lab.ACTIVE_SIGNED,
+            phase,
+            marker="o",
+            ms=2,
+            color=colors.get(people, "gray"),
+            alpha=0.7,
+            label=label
+        )
+
+    ax.set(
+        xlabel="Signed Subcarrier",
+        ylabel="Phase (rad)",
+        title="Average Channel Phase vs Signed Subcarrier"
+    )
+
+    ax.grid(alpha=0.25)
+    ax.legend()
+
+    save_figure(fig, output_dir, "occupancy_channel_phase")
+
+    # --------------------------------------------------
+    # Statistics
+    # --------------------------------------------------
+
+    print("\nMean phase comparison")
+    print(f"0 people : {np.mean(phase_mean_0):.4f}")
+    print(f"12 people: {np.mean(phase_mean_12):.4f}")
+
+    print(
+        ttest_ind(
+            phase_mean_0,
+            phase_mean_12,
+            equal_var=False
+        )
+    )
+
+    print("\nSlope comparison")
+    print(
+        ttest_ind(
+            phase_slope_0,
+            phase_slope_12,
+            equal_var=False
+        )
+    )
+
+    print("\nIntercept comparison")
+    print(
+        ttest_ind(
+            phase_intercept_0,
+            phase_intercept_12,
+            equal_var=False
+        )
+    )
+
+    # --------------------------------------------------
+    # Feature boxplots
+    # --------------------------------------------------
+
+    fig2, axes = plt.subplots(1, 3, figsize=(12, 4))
+
+    axes[0].boxplot(
+        [phase_mean_0, phase_mean_12],
+        labels=["0 people", "12 people"]
+    )
+    axes[0].set_title("Mean Phase")
+
+    axes[1].boxplot(
+        [phase_slope_0, phase_slope_12],
+        labels=["0 people", "12 people"]
+    )
+    axes[1].set_title("Phase Slope")
+
+    axes[2].boxplot(
+        [phase_intercept_0, phase_intercept_12],
+        labels=["0 people", "12 people"]
+    )
+    axes[2].set_title("Phase Intercept")
+
+    fig2.tight_layout()
+
+    save_figure(fig2, output_dir, "occupancy_phase_features")
 
 def main() -> None:
     args = parse_args()
