@@ -565,74 +565,6 @@ def analyze_hardware(hardware_dir: Path, output_dir: Path) -> dict[str, object]:
         "gain_results": serializable_results,
     }
 
-def analyze_channel_estimate(hardware_dir: Path, output_dir: Path, capture_filename: str) -> dict[str, object]:
-
-    summary = json.loads((hardware_dir / "lab5_measurement_summary.json").read_text())
-    reference = lab.build_reference_frame(0)
-
-    expected_measurement_frames = int(summary["waveform"]["measurement_periods"])
-    expected_capture_samples = int(summary["waveform"]["capture_samples"])
-
-    capture_path = hardware_dir / capture_filename
-    if not capture_path.is_file():
-        raise FileNotFoundError(f"Missing capture file: {capture_path}")
-
-    capture = np.fromfile(capture_path, dtype=np.complex64)
-    if capture.size != expected_capture_samples:
-        raise ValueError(f"{capture_path.name} must contain {expected_capture_samples} complex64 samples, found {capture.size}.")
-
-    recovered, diagnostics = lab.recover_capture(capture, reference)
-
-    analyzed = recovered[1:] if len(recovered) > expected_measurement_frames else recovered
-
-    channel_estimates = np.asarray([result["channel_estimate"][lab.ACTIVE_IDX] for result in analyzed])
-
-    if channel_estimates.size == 0: raise RuntimeError("No valid OFDM frames were recovered.")
-
-    H_mean = np.mean(channel_estimates, axis=0)
-
-    fig, axes = plt.subplots(2, 1, figsize=(10.0, 6.2), constrained_layout=True)
-
-    axes[0].plot(
-        lab.ACTIVE_SIGNED,
-        20.0 * np.log10(np.maximum(np.abs(H_mean), 1e-12)),
-        marker="o",
-        ms=2.5,
-    )
-
-    axes[1].plot(
-        lab.ACTIVE_SIGNED,
-        np.unwrap(np.angle(H_mean)),
-        marker="o",
-        ms=2.5,
-    )
-
-    axes[0].set(
-        xlabel="Signed subcarrier",
-        ylabel=r"$20\log_{10}|\hat H[k]|$ (dB)",
-        title="Average channel magnitude",
-    )
-
-    axes[1].set(
-        xlabel="Signed subcarrier",
-        ylabel="Unwrapped phase (rad)",
-        title="Average channel phase",
-    )
-
-    for axis in axes:
-        axis.grid(alpha=0.25)
-
-    save_figure(fig, output_dir, "channel_estimate")
-
-    return {
-        "capture_file": capture_filename,
-        "detected_frames": len(analyzed),
-        "channel_estimates": channel_estimates,
-        "mean_channel_estimate": H_mean,
-    }
-
-import re
-
 def analyze_all_channel_estimates(hardware_dir: Path) -> dict[str, object]:
 
     summary = json.loads((hardware_dir / "lab5_measurement_summary.json").read_text())
@@ -700,9 +632,6 @@ def analyze_all_channel_estimates(hardware_dir: Path) -> dict[str, object]:
 def channel_correlation(H1, H2):
     return np.abs(np.vdot(H1, H2)) / (np.linalg.norm(H1) * np.linalg.norm(H2))
 
-def channel_nmse(H_ref, H_test):
-    return np.sum(np.abs(H_test - H_ref)**2) / np.sum(np.abs(H_ref)**2)
-
 def plot_correlation_heatmap(results, output_dir):
 
     names = []
@@ -722,7 +651,7 @@ def plot_correlation_heatmap(results, output_dir):
     same_12 = []
     cross_0_12 = []
 
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(16, 16))
 
     for i in range(N):
         for j in range(N):
@@ -815,76 +744,12 @@ def plot_correlation_heatmap(results, output_dir):
     )
 
     ax2.set_ylabel("Correlation")
+    ax2.set_xlabel("Occupancy Pair")
     ax2.set_title("Correlation Distribution by Occupancy Pair")
 
     save_figure(fig2, output_dir, "occupancy_corr_boxplot")
 
-def plot_difference_heatmap(results, output_dir):
 
-    names = []
-    channels = []
-
-    for (people, run), result in sorted(results.items()):
-
-        names.append(f"{people} people, run {run}")
-        channels.append(result["mean_channel_estimate"])
-
-    same_0 = []
-    same_12 = []
-    cross_0_12 = []
-    
-    items = sorted(results.items())
-    
-    for i, ((people_i, run_i), result_i) in enumerate(items):
-        H_i = result_i["mean_channel_estimate"]
-    
-        for j, ((people_j, run_j), result_j) in enumerate(items):
-    
-            # Ignore self comparisons
-            if i == j:
-                continue
-    
-            H_j = result_j["mean_channel_estimate"]
-    
-            distance = np.linalg.norm(H_i - H_j) / np.linalg.norm(H_i)
-    
-            if people_i == 0 and people_j == 0:
-                same_0.append(distance)
-    
-            elif people_i == 12 and people_j == 12:
-                same_12.append(distance)
-    
-            elif {people_i, people_j} == {0, 12}:
-                cross_0_12.append(distance)
-    
-    print(f"0 vs 0 average distance:   {np.mean(same_0):.4f}")
-    print(f"12 vs 12 average distance: {np.mean(same_12):.4f}")
-    print(f"0 vs 12 average distance:  {np.mean(cross_0_12):.4f}")
-
-    N = len(channels)
-
-    corr = np.zeros((N,N))
-
-    fig, ax = plt.subplots(figsize=(8,8))
-    for i in range(N):
-        for j in range(N):
-
-            corr[i,j] = np.linalg.norm(channels[i] - channels[j]) / np.linalg.norm(channels[i])
-            ax.text(j, i, f"{corr[i,j]:.3f}", ha="center", va="center", fontsize=8)
-
-    im = ax.imshow(corr, vmin=0, vmax=1, cmap="ocean")
-
-    ax.set_xticks(np.arange(N))
-    ax.set_yticks(np.arange(N))
-
-    ax.set_xticklabels(names, rotation=90)
-    ax.set_yticklabels(names)
-
-    ax.set_title("Channel Difference Heatmap")
-
-    plt.colorbar(im, ax=ax)
-
-    save_figure(fig, output_dir, "occupancy_diff_heatmap")
 
 def plot_channel_magnitude(results, output_dir):
 
@@ -897,9 +762,24 @@ def plot_channel_magnitude(results, output_dir):
 
     labels_drawn = set()
 
+    mag_mean_0 = []
+    mag_mean_12 = []
+
     for (people, run), result in sorted(results.items()):
 
         H = result["mean_channel_estimate"]
+
+        magnitude_db = 20 * np.log10(
+            np.maximum(np.abs(H), 1e-12)
+        )
+
+        # Feature extraction
+        mean_mag = np.mean(magnitude_db)
+
+        if people == 0:
+            mag_mean_0.append(mean_mag)
+        else:
+            mag_mean_12.append(mean_mag)
 
         label = None
         if people not in labels_drawn:
@@ -908,7 +788,7 @@ def plot_channel_magnitude(results, output_dir):
 
         ax.plot(
             lab.ACTIVE_SIGNED,
-            20*np.log10(np.maximum(np.abs(H), 1e-12)),
+            magnitude_db,
             marker="o",
             ms=2,
             color=colors.get(people, "gray"),
@@ -925,9 +805,51 @@ def plot_channel_magnitude(results, output_dir):
     ax.grid(alpha=0.25)
     ax.legend()
 
-    save_figure(fig, output_dir, "occupancy_channel_magnitude")
+    save_figure(
+        fig,
+        output_dir,
+        "occupancy_channel_magnitude"
+    )
 
-from scipy.stats import ttest_ind
+    # --------------------------------------------------
+    # Statistics
+    # --------------------------------------------------
+
+    print("\nMean magnitude comparison")
+
+    print(f"0 people : {np.mean(mag_mean_0):.4f}")
+    print(f"12 people: {np.mean(mag_mean_12):.4f}")
+
+    print(
+        ttest_ind(
+            mag_mean_0,
+            mag_mean_12,
+            # equal_var=False
+        )
+    )
+
+    # --------------------------------------------------
+    # Mean magnitude boxplot
+    # --------------------------------------------------
+
+    fig2, ax2 = plt.subplots(figsize=(5, 4))
+
+    ax2.boxplot(
+        [mag_mean_0, mag_mean_12],
+        labels=["0 people", "12 people"]
+    )
+
+    ax2.set_title("Mean Channel Magnitude")
+    ax2.set_ylabel("Magnitude (dB)")
+    ax2.set_xlabel("Occupancy Level (Number of People)")
+
+    fig2.tight_layout()
+
+    save_figure(
+        fig2,
+        output_dir,
+        "occupancy_magnitude_mean"
+    )
 
 def plot_channel_phase(results, output_dir):
 
@@ -1004,27 +926,9 @@ def plot_channel_phase(results, output_dir):
     print(f"12 people: {np.mean(phase_mean_12):.4f}")
 
     print(
-        ks_2samp(
+        ttest_ind(
             phase_mean_0,
             phase_mean_12,
-            # equal_var=False
-        )
-    )
-
-    print("\nSlope comparison")
-    print(
-        ks_2samp(
-            phase_slope_0,
-            phase_slope_12,
-            # equal_var=False
-        )
-    )
-
-    print("\nIntercept comparison")
-    print(
-        ks_2samp(
-            phase_intercept_0,
-            phase_intercept_12,
             # equal_var=False
         )
     )
@@ -1033,25 +937,15 @@ def plot_channel_phase(results, output_dir):
     # Feature boxplots
     # --------------------------------------------------
 
-    fig2, axes = plt.subplots(1, 3, figsize=(12, 4))
+    fig2, axes = plt.subplots(1, 1, figsize=(5, 4))
 
-    axes[0].boxplot(
+    axes.boxplot(
         [phase_mean_0, phase_mean_12],
         labels=["0 people", "12 people"]
     )
-    axes[0].set_title("Mean Phase")
-
-    axes[1].boxplot(
-        [phase_slope_0, phase_slope_12],
-        labels=["0 people", "12 people"]
-    )
-    axes[1].set_title("Phase Slope")
-
-    axes[2].boxplot(
-        [phase_intercept_0, phase_intercept_12],
-        labels=["0 people", "12 people"]
-    )
-    axes[2].set_title("Phase Intercept")
+    axes.set_title("Mean Phase")
+    axes.set_ylabel("Phase (rad)")
+    axes.set_xlabel("Occupancy Level (Number of People)")
 
     fig2.tight_layout()
 
