@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 from scipy.stats import ttest_ind
 from scipy.stats import ks_2samp
+import re
 
 import matplotlib
 
@@ -610,6 +611,7 @@ def analyze_all_channel_estimates(hardware_dir: Path) -> dict[str, object]:
             ]
         )
 
+        # print(channel_estimates.shape)
         if channel_estimates.size == 0:
             raise RuntimeError(
                 f"No valid OFDM frames were recovered from "
