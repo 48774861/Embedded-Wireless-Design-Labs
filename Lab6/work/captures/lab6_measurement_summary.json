@@ -30,6 +30,6 @@
     "tx_subdevice": "A:0 A:1",
     "rx_subdevice": "A:0 A:1",
     "tx_antenna": "TX/RX",
-    "rx_antenna": "RX2"
+    "rx_antenna": "TX/RX"
   }
 }

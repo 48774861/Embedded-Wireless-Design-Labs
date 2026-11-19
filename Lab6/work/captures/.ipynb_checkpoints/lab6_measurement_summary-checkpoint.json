@@ -1,0 +1,35 @@
+{
+  "waveform": {
+    "sample_rate_sps": 1000000.0,
+    "center_frequency_hz": 2450000000.0,
+    "period_samples": 65536,
+    "repeat_count": 16,
+    "warmup_periods": 1,
+    "measurement_periods": 15,
+    "acquisition_lead_samples": 2000000,
+    "transport_samples": 3048576,
+    "transport_bytes_per_channel": 24388608,
+    "capture_seconds": 6.0,
+    "capture_samples_per_channel": 6000000,
+    "capture_bytes_per_channel": 48000000,
+    "digital_peak": 0.1,
+    "payload_bits_per_period": 4096,
+    "tx0_period_sha256": "5043fdcd512dfd5fc53b848bd9bdd4fe907988131def4ef52a73479b894b837b",
+    "tx1_period_sha256": "de65020b6210a02fa087793d615ea9c4aa4ba60a6693139ad23c881ba53659d9",
+    "tx0_file_sha256": "d7122fbdb369e1a632371d293467235af8f290ecbeba01c88bcf46d23b9cd8a5",
+    "tx1_file_sha256": "1f3a03c2cf3f8afa03f916c1740fb7bae9c239f6031f744e5f462f3652ca3716"
+  },
+  "experiment": {
+    "tx_gains_db": [
+      40,
+      45,
+      50
+    ],
+    "rx_gain_db": 60.0,
+    "noise_samples_per_channel": 250000,
+    "tx_subdevice": "A:0 A:1",
+    "rx_subdevice": "A:0 A:1",
+    "tx_antenna": "TX/RX",
+    "rx_antenna": "RX2"
+  }
+}
