@@ -1,0 +1,56 @@
+@import 'https://smu.evaluationkit.com/canvas/css';
+/*********************************************************************/
+/***** BEGIN DESIGNPLUS THEME IMPORT & CUSTOMIZATION  ****************/
+/*********************************************************************/
+/* Import statements need to be at the top of your CSS file */
+
+/*** Legacy Sidebar ***/
+/* For Main CSS file */
+@import url(https://designtools.ciditools.com/css/themes.css);
+/* For Mobile app CSS file */
+/*@import url(https://designtools.ciditools.com/css/app.css);*/
+/* Institution color customizations */
+@import url(https://files.ciditools.com/smu/theme_colors.css);
+
+/*** New Sidebar ***/
+/* For Main CSS files */
+@import url(https://designplus.ciditools.com/css/content.css);
+@import url(https://designplus.ciditools.com/css/editor.css);
+/* For Mobile app CSS file */
+/*@import url(https://designplus.ciditools.com/css/mobile.css);*/
+
+:root {
+    --dt-color-primary: #354CA1;
+    --dt-color-primary-contrast: #FFFFFF;
+    --dt-color-primary-dark-text: #FFFFFF;
+    --dt-color-secondary: #FFFFFF;
+    --dt-color-secondary-contrast: #000000;
+    --dt-color-secondary-dark-text: #354CA1;
+    --dt-color-accent: #E5DAB2;
+    --dt-color-accent-contrast: #000000;
+    --dt-color-accent-dark-text: #696551;
+    --dt-color-gray: #CCCCCC;
+    --dt-color-gray-contrast: #000000;
+    --dt-color-gray-dark-text: #636363;
+    --dt-color-white: #FFFFFF;
+    --dt-color-white-contrast: #000000;
+    --dt-color-white-dark-text: #707070;
+    --dt-color-graybg: #E6E6E6;
+    --dt-color-graybg-contrast: #000000;
+}
+
+/*********************************************************************/
+/***** END DESIGNPLUS THEME IMPORT & CUSTOMIZATION   *****************/
+/*********************************************************************/
+#kl_tools_wrapper {
+  top: 30px !important;
+}
+#kl_tools_wrapper.visible #kl_tools_title {
+  top: 30px !important;
+}
+#kl_tools_wrapper.visible #kl_jump_menu {
+  top: 60px !important;
+}
+#kl_tools_wrapper.visible .kl_toggle_tools {
+  top: 30px !important;
+}
